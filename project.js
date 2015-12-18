@@ -1,62 +1,87 @@
-/**
- *  Scale each FFT value by its neighbors
- */
 
-var source, fft;
+var mic;
+var fft;
+var binCount = 1024;
+var bins = new Array(binCount);
+var speed = 2;
+var cvas;
+var saveButton;
 
 function setup() {
-  createCanvas(windowWidth, windowHeight);
-  noFill();
+  cvas = createCanvas(windowWidth-25, windowHeight-100);
+  background('white');
+  console.log(width, height);
+  noStroke();
+  colorMode(HSB);
+  mic = new p5.AudioIn();
+  mic.start();
 
-  source = new p5.AudioIn();
-  source.start();
+  var smoothing = 0.5;
+  fft = new p5.FFT(smoothing, binCount);
+  fft.setInput(mic);
 
-  fft = new p5.FFT(0, 1024);
-  fft.setInput(source);
 }
 
 function draw() {
-  background(220);
+
   var spectrum = fft.analyze();
-  var newBuffer = [];
 
-  var quarterSpectrum = spectrum.length/2;
 
-  beginShape();
-  for (var i = 0; i < quarterSpectrum; i++) {
-    var point = smoothPoint(spectrum, i, 8);
-    newBuffer.push(point);
-    var x = map(i, 0, quarterSpectrum, 0, width);
-    var y = map(point, 0, 255, height, 0);
-    curveVertex(x, y);
+  var can = copy(cvas, 0, 0, width, height, speed, 0, width, height);
+
+
+  for (var i = 0; i < spectrum.length; i++) {
+    var value;
+    if (logView) {
+      logIndex = logScale(i, spectrum.length);
+      value = spectrum[logIndex];
+    } else {
+      value = spectrum[i];
+    }
+    var c = value;
+    fill(c, c, 255);
+    var percent = i / spectrum.length;
+    var y = percent * height;
+    rect(0, height - y, speed, height - spectrum.length);
   }
-  endShape();
+
+
+}
+
+//// call functions ////
+
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  background(0);
+}
+
+function keyPressed() {
+  if (key == 'L') {
+    toggleScale();
+  }
+}
+
+function mousePressed() {
+save(cvas, 'sound.jpg');
+}
+
+var logView = true;
+function toggleScale() {
+  logView = !logView;
 }
 
 
+/**
+ * Given an index and the total number of entries, return the
+ * log-scaled value.
+ */
+function logScale(index, total, opt_base) {
+  var base = opt_base || 2;
+  var logmax = logBase(total + 1, base);
+  var exp = logmax * index / total;
+  return Math.round(Math.pow(base, exp) - 1);
+}
 
-// average a point in an array with its neighbors
-function smoothPoint(spectrum, index, numberOfNeighbors) {
-
-  // default to 2 neighbors on either side
-  var neighbors = numberOfNeighbors || 2;
-  var len = spectrum.length;
-
-  var val = 0;
-
-  // start below the index
-  var indexMinusNeighbors = index - neighbors;
-  var smoothedPoints = 0;
-
-  for (var i = indexMinusNeighbors; i < (index+neighbors) && i < len; i++) {
-    // if there is a point at spectrum[i], tally it
-    if (typeof(spectrum[i]) !== 'undefined') {
-      val += spectrum[i];
-      smoothedPoints++;
-    }
-  }
-
-  val = val/smoothedPoints;
-
-  return val;
+function logBase(val, base) {
+  return Math.log(val) / Math.log(base);
 }
